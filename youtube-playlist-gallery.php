@@ -4,8 +4,8 @@
  * Plugin URI: https://github.com/dway/youtube-playlist-gallery
  * Description: Visualizza una gallery dei video di una playlist YouTube con lightbox, cache e layout multipli.
  * Version: 2.0.0
- * Author: dway
- * Author URI: https://dway.dev
+ * Author: DWAY AGENCY
+ * Author URI: https://dway.agency
  * License: GPL-2.0-or-later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: youtube-playlist-gallery
