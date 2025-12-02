@@ -1,0 +1,195 @@
+# Copyright (C) 2025 dway
+# This file is distributed under the GPL v2 or later.
+msgid ""
+msgstr ""
+"Project-Id-Version: YouTube Playlist Gallery 2.0.0\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/youtube-playlist-gallery\n"
+"POT-Creation-Date: 2025-12-02 12:00:00+00:00\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"PO-Revision-Date: 2025-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+
+#: youtube-playlist-gallery.php
+msgid "YouTube Playlist Gallery"
+msgstr ""
+
+msgid "YT Playlist Gallery"
+msgstr ""
+
+msgid "Impostazioni API YouTube"
+msgstr ""
+
+msgid "YouTube API Key"
+msgstr ""
+
+msgid "Inserisci la tua YouTube Data API v3 key."
+msgstr ""
+
+msgid "Impostazioni Visualizzazione"
+msgstr ""
+
+msgid "Layout Predefinito"
+msgstr ""
+
+msgid "Griglia"
+msgstr ""
+
+msgid "Lista"
+msgstr ""
+
+msgid "Masonry"
+msgstr ""
+
+msgid "Carosello"
+msgstr ""
+
+msgid "Colonne Predefinite"
+msgstr ""
+
+msgid "Numero di colonne per il layout a griglia (1-6)"
+msgstr ""
+
+msgid "Abilita Lightbox"
+msgstr ""
+
+msgid "Apri video in lightbox invece che in nuova finestra"
+msgstr ""
+
+msgid "Mostra Titolo Video"
+msgstr ""
+
+msgid "Mostra il titolo del video sotto la thumbnail"
+msgstr ""
+
+msgid "Mostra Descrizione"
+msgstr ""
+
+msgid "Mostra la descrizione del video"
+msgstr ""
+
+msgid "Impostazioni Cache"
+msgstr ""
+
+msgid "La cache riduce le chiamate API e migliora le performance."
+msgstr ""
+
+msgid "Svuota Cache"
+msgstr ""
+
+msgid "Abilita Cache"
+msgstr ""
+
+msgid "Abilita il caching dei risultati API"
+msgstr ""
+
+msgid "Durata Cache (ore)"
+msgstr ""
+
+msgid "Durata della cache in ore (1-168 ore = max 1 settimana)"
+msgstr ""
+
+msgid "Shortcode Generator"
+msgstr ""
+
+msgid "Genera uno shortcode personalizzato:"
+msgstr ""
+
+msgid "Playlist ID:"
+msgstr ""
+
+msgid "Layout:"
+msgstr ""
+
+msgid "Colonne:"
+msgstr ""
+
+msgid "Max Risultati:"
+msgstr ""
+
+msgid "Paginazione"
+msgstr ""
+
+msgid "Genera Shortcode"
+msgstr ""
+
+msgid "Shortcode Generato:"
+msgstr ""
+
+msgid "Copia"
+msgstr ""
+
+msgid "Documentazione"
+msgstr ""
+
+msgid "Esempio di utilizzo:"
+msgstr ""
+
+msgid "Parametri disponibili:"
+msgstr ""
+
+msgid "ID della playlist (obbligatorio)"
+msgstr ""
+
+msgid "Numero massimo di video (default: 10)"
+msgstr ""
+
+msgid "Numero di colonne 1-6 (default: 3)"
+msgstr ""
+
+msgid "Supporto"
+msgstr ""
+
+msgid "Hai bisogno di aiuto? Contatta dway per supporto."
+msgstr ""
+
+msgid "Versione:"
+msgstr ""
+
+msgid "Cache svuotata con successo!"
+msgstr ""
+
+msgid "Errore durante l'operazione."
+msgstr ""
+
+msgid "Shortcode copiato!"
+msgstr ""
+
+msgid "API key non configurata."
+msgstr ""
+
+msgid "Errore nel recuperare i video dalla API."
+msgstr ""
+
+msgid "Errore sconosciuto API"
+msgstr ""
+
+msgid "Nessun video trovato nella playlist."
+msgstr ""
+
+msgid "⚠️ Playlist ID non fornito."
+msgstr ""
+
+msgid "Carica Altri Video"
+msgstr ""
+
+msgid "Playlist ID mancante"
+msgstr ""
+
+msgid "Permessi insufficienti"
+msgstr ""
+
+msgid "Mostra una playlist YouTube nella sidebar"
+msgstr ""
+
+msgid "Titolo:"
+msgstr ""
+
+msgid "Video YouTube"
+msgstr ""
+
+msgid "Numero Video:"
+msgstr ""
+

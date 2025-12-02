@@ -1,0 +1,229 @@
+/**
+ * YouTube Playlist Gallery - Admin Styles
+ * Version: 2.0.0
+ * Author: dway
+ */
+
+/* ==========================================================================
+   Admin Layout
+   ========================================================================== */
+
+.ypg-admin-wrapper {
+    display: grid;
+    grid-template-columns: 1fr 350px;
+    gap: 30px;
+    margin-top: 20px;
+}
+
+.ypg-admin-main {
+    background: #fff;
+    padding: 20px;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.ypg-admin-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+@media (max-width: 1200px) {
+    .ypg-admin-wrapper {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ==========================================================================
+   Admin Boxes
+   ========================================================================== */
+
+.ypg-box {
+    background: #fff;
+    padding: 20px;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.ypg-box h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 18px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+.ypg-box h4 {
+    margin-top: 15px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.ypg-box p {
+    margin-top: 0;
+    margin-bottom: 15px;
+}
+
+.ypg-box code {
+    display: block;
+    background: #f7f7f7;
+    padding: 10px;
+    border-left: 3px solid #0073aa;
+    font-size: 13px;
+    overflow-x: auto;
+    margin: 10px 0;
+}
+
+.ypg-box ul {
+    margin: 10px 0;
+}
+
+.ypg-box ul li {
+    margin-bottom: 8px;
+    font-size: 13px;
+}
+
+.ypg-box ul li strong {
+    color: #0073aa;
+}
+
+/* ==========================================================================
+   Shortcode Generator
+   ========================================================================== */
+
+.ypg-box label {
+    display: block;
+    margin-top: 12px;
+    margin-bottom: 5px;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.ypg-box input[type="text"],
+.ypg-box input[type="number"],
+.ypg-box select {
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+.ypg-box input[type="checkbox"] {
+    margin-right: 5px;
+}
+
+#ypg-generate-shortcode {
+    width: 100%;
+    margin-top: 10px;
+}
+
+#ypg-shortcode-output {
+    background: #f7f7f7;
+    padding: 15px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+}
+
+#ypg-shortcode-output label {
+    margin-top: 0;
+}
+
+#ypg-shortcode-text {
+    font-family: monospace;
+    background: #fff;
+    margin-bottom: 10px;
+}
+
+#ypg-copy-shortcode {
+    width: 100%;
+}
+
+/* ==========================================================================
+   Support Box
+   ========================================================================== */
+
+.ypg-support {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    border: none;
+}
+
+.ypg-support h3 {
+    color: #fff;
+    border-bottom-color: rgba(255, 255, 255, 0.2);
+}
+
+.ypg-support p {
+    margin-bottom: 10px;
+}
+
+/* ==========================================================================
+   Cache Status
+   ========================================================================== */
+
+#ypg-cache-status {
+    font-weight: 600;
+}
+
+#ypg-cache-status.success {
+    color: #46b450;
+}
+
+#ypg-cache-status.error {
+    color: #dc3232;
+}
+
+/* ==========================================================================
+   Settings Fields
+   ========================================================================== */
+
+.form-table th {
+    font-weight: 600;
+}
+
+.form-table td input[type="text"].regular-text {
+    width: 100%;
+    max-width: 500px;
+}
+
+.form-table td .description {
+    font-style: italic;
+    color: #666;
+}
+
+/* ==========================================================================
+   Animations
+   ========================================================================== */
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.ypg-box {
+    animation: slideIn 0.3s ease;
+}
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    .ypg-admin-wrapper {
+        padding: 0 10px;
+    }
+    
+    .ypg-box {
+        padding: 15px;
+    }
+    
+    .ypg-box h3 {
+        font-size: 16px;
+    }
+}
+

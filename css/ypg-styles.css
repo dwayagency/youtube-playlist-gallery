@@ -1,0 +1,525 @@
+/**
+ * YouTube Playlist Gallery - Frontend Styles
+ * Version: 2.0.0
+ * Author: dway
+ */
+
+/* ==========================================================================
+   Gallery Container
+   ========================================================================== */
+
+.ypg-gallery-wrapper {
+    margin: 30px 0;
+    clear: both;
+}
+
+.ypg-gallery {
+    display: grid;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+/* ==========================================================================
+   Grid Layout - Responsive Columns
+   ========================================================================== */
+
+.ypg-layout-grid .ypg-gallery.ypg-columns-1 { grid-template-columns: repeat(1, 1fr); }
+.ypg-layout-grid .ypg-gallery.ypg-columns-2 { grid-template-columns: repeat(2, 1fr); }
+.ypg-layout-grid .ypg-gallery.ypg-columns-3 { grid-template-columns: repeat(3, 1fr); }
+.ypg-layout-grid .ypg-gallery.ypg-columns-4 { grid-template-columns: repeat(4, 1fr); }
+.ypg-layout-grid .ypg-gallery.ypg-columns-5 { grid-template-columns: repeat(5, 1fr); }
+.ypg-layout-grid .ypg-gallery.ypg-columns-6 { grid-template-columns: repeat(6, 1fr); }
+
+/* Responsive breakpoints for grid */
+@media (max-width: 1200px) {
+    .ypg-layout-grid .ypg-gallery.ypg-columns-6 { grid-template-columns: repeat(4, 1fr); }
+    .ypg-layout-grid .ypg-gallery.ypg-columns-5 { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 992px) {
+    .ypg-layout-grid .ypg-gallery.ypg-columns-6,
+    .ypg-layout-grid .ypg-gallery.ypg-columns-5,
+    .ypg-layout-grid .ypg-gallery.ypg-columns-4 { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 768px) {
+    .ypg-layout-grid .ypg-gallery.ypg-columns-6,
+    .ypg-layout-grid .ypg-gallery.ypg-columns-5,
+    .ypg-layout-grid .ypg-gallery.ypg-columns-4,
+    .ypg-layout-grid .ypg-gallery.ypg-columns-3 { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 480px) {
+    .ypg-layout-grid .ypg-gallery { grid-template-columns: repeat(1, 1fr); }
+}
+
+/* ==========================================================================
+   List Layout
+   ========================================================================== */
+
+.ypg-layout-list .ypg-gallery {
+    grid-template-columns: 1fr;
+}
+
+.ypg-layout-list .ypg-item {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.ypg-layout-list .ypg-thumbnail {
+    flex: 0 0 300px;
+    max-width: 300px;
+}
+
+.ypg-layout-list .ypg-content {
+    flex: 1;
+}
+
+@media (max-width: 768px) {
+    .ypg-layout-list .ypg-item {
+        flex-direction: column;
+    }
+    
+    .ypg-layout-list .ypg-thumbnail {
+        flex: 1 1 auto;
+        max-width: 100%;
+    }
+}
+
+/* ==========================================================================
+   Masonry Layout
+   ========================================================================== */
+
+.ypg-layout-masonry .ypg-gallery {
+    column-count: 3;
+    column-gap: 20px;
+}
+
+.ypg-layout-masonry .ypg-item {
+    break-inside: avoid;
+    margin-bottom: 20px;
+}
+
+@media (max-width: 992px) {
+    .ypg-layout-masonry .ypg-gallery {
+        column-count: 2;
+    }
+}
+
+@media (max-width: 768px) {
+    .ypg-layout-masonry .ypg-gallery {
+        column-count: 1;
+    }
+}
+
+/* ==========================================================================
+   Carousel Layout
+   ========================================================================== */
+
+.ypg-layout-carousel .ypg-gallery {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    gap: 15px;
+    padding-bottom: 10px;
+}
+
+.ypg-layout-carousel .ypg-item {
+    flex: 0 0 280px;
+    scroll-snap-align: start;
+}
+
+.ypg-layout-carousel .ypg-gallery::-webkit-scrollbar {
+    height: 8px;
+}
+
+.ypg-layout-carousel .ypg-gallery::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.ypg-layout-carousel .ypg-gallery::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.ypg-layout-carousel .ypg-gallery::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* ==========================================================================
+   Video Item
+   ========================================================================== */
+
+.ypg-item {
+    position: relative;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.ypg-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.ypg-video-link {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+}
+
+/* ==========================================================================
+   Thumbnail
+   ========================================================================== */
+
+.ypg-thumbnail {
+    position: relative;
+    overflow: hidden;
+    padding-bottom: 56.25%; /* 16:9 aspect ratio */
+    background: #000;
+}
+
+.ypg-thumbnail img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.ypg-item:hover .ypg-thumbnail img {
+    transform: scale(1.05);
+}
+
+/* ==========================================================================
+   Play Overlay
+   ========================================================================== */
+
+.ypg-play-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 68px;
+    height: 48px;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    opacity: 0.9;
+    pointer-events: none;
+}
+
+.ypg-item:hover .ypg-play-overlay {
+    transform: translate(-50%, -50%) scale(1.1);
+    opacity: 1;
+}
+
+.ypg-play-icon {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
+}
+
+/* ==========================================================================
+   Content Area
+   ========================================================================== */
+
+.ypg-content {
+    padding: 15px;
+}
+
+.ypg-title {
+    margin: 0 0 8px 0;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: #333;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ypg-description {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #666;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ypg-layout-list .ypg-title {
+    font-size: 18px;
+    -webkit-line-clamp: 3;
+}
+
+.ypg-layout-list .ypg-description {
+    -webkit-line-clamp: 4;
+}
+
+/* ==========================================================================
+   Pagination / Load More
+   ========================================================================== */
+
+.ypg-pagination {
+    text-align: center;
+    margin-top: 30px;
+}
+
+.ypg-load-more {
+    background: #ff0000;
+    color: #fff;
+    border: none;
+    padding: 12px 30px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.3s ease, transform 0.2s ease;
+}
+
+.ypg-load-more:hover {
+    background: #cc0000;
+    transform: translateY(-2px);
+}
+
+.ypg-load-more:active {
+    transform: translateY(0);
+}
+
+.ypg-load-more:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* ==========================================================================
+   Spinner / Loader
+   ========================================================================== */
+
+.ypg-loader {
+    display: inline-block;
+    margin-left: 10px;
+}
+
+.ypg-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(0, 0, 0, 0.1);
+    border-top-color: #ff0000;
+    border-radius: 50%;
+    animation: ypg-spin 0.8s linear infinite;
+}
+
+@keyframes ypg-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   Lightbox
+   ========================================================================== */
+
+.ypg-lightbox {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: ypgFadeIn 0.3s ease;
+}
+
+.ypg-lightbox-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+}
+
+.ypg-lightbox-content {
+    position: relative;
+    z-index: 2;
+    width: 90%;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.ypg-lightbox-video {
+    position: relative;
+    padding-bottom: 56.25%;
+    height: 0;
+    overflow: hidden;
+    background: #000;
+    border-radius: 8px;
+    box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5);
+}
+
+.ypg-lightbox-video iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 8px;
+}
+
+.ypg-lightbox-close {
+    position: absolute;
+    top: -50px;
+    right: 0;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 40px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 10px;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+    opacity: 0.8;
+    z-index: 3;
+}
+
+.ypg-lightbox-close:hover {
+    opacity: 1;
+    transform: rotate(90deg);
+}
+
+@keyframes ypgFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* Mobile lightbox adjustments */
+@media (max-width: 768px) {
+    .ypg-lightbox-content {
+        width: 95%;
+    }
+    
+    .ypg-lightbox-close {
+        top: 10px;
+        right: 10px;
+        font-size: 30px;
+        background: rgba(0, 0, 0, 0.5);
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
+/* ==========================================================================
+   Error Messages
+   ========================================================================== */
+
+.ypg-error {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-left: 4px solid #ffc107;
+    color: #856404;
+    padding: 15px 20px;
+    border-radius: 4px;
+    margin: 20px 0;
+}
+
+.ypg-error p {
+    margin: 0;
+    font-size: 14px;
+}
+
+/* ==========================================================================
+   Dark Mode Support
+   ========================================================================== */
+
+@media (prefers-color-scheme: dark) {
+    .ypg-item {
+        background: #1e1e1e;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+    
+    .ypg-title {
+        color: #e0e0e0;
+    }
+    
+    .ypg-description {
+        color: #b0b0b0;
+    }
+    
+    .ypg-error {
+        background: #3a3a2a;
+        border-color: #ffb300;
+        color: #ffe082;
+    }
+}
+
+/* ==========================================================================
+   Accessibility
+   ========================================================================== */
+
+.ypg-video-link:focus {
+    outline: 2px solid #ff0000;
+    outline-offset: 2px;
+}
+
+.ypg-load-more:focus {
+    outline: 2px solid #ff0000;
+    outline-offset: 2px;
+}
+
+.ypg-lightbox-close:focus {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+    .ypg-item,
+    .ypg-thumbnail img,
+    .ypg-play-overlay,
+    .ypg-load-more,
+    .ypg-lightbox-close {
+        transition: none;
+    }
+    
+    .ypg-lightbox {
+        animation: none;
+    }
+}
+
+/* ==========================================================================
+   Print Styles
+   ========================================================================== */
+
+@media print {
+    .ypg-play-overlay,
+    .ypg-load-more,
+    .ypg-pagination {
+        display: none !important;
+    }
+    
+    .ypg-item {
+        break-inside: avoid;
+    }
+}
+
