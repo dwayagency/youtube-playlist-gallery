@@ -2,8 +2,8 @@
 /**
  * Plugin Name: YouTube Playlist Gallery
  * Plugin URI: https://github.com/dway/youtube-playlist-gallery
- * Description: Visualizza una gallery dei video di una playlist YouTube con lightbox, cache e layout multipli.
- * Version: 2.0.0
+ * Description: Visualizza una gallery dei video di una playlist YouTube con lightbox, cache e layout multipli. Gestisci multiple playlist.
+ * Version: 2.1.0
  * Author: DWAY AGENCY
  * Author URI: https://dway.agency
  * License: GPL-2.0-or-later
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('YPG_VERSION', '2.0.0');
+define('YPG_VERSION', '2.1.0');
 define('YPG_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('YPG_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('YPG_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -30,29 +30,85 @@ define('YPG_PLUGIN_BASENAME', plugin_basename(__FILE__));
 class YouTube_Playlist_Gallery {
 
     private $option_name = 'ypg_settings';
+    private $table_name;
     private $cache_group = 'ypg_cache';
-    private $cache_expiration = 3600; // 1 hour default
+    private $cache_expiration = 3600;
 
     public function __construct() {
+        global $wpdb;
+        $this->table_name = $wpdb->prefix . 'ypg_playlists';
+        
+        // Activation/Deactivation hooks
+        register_activation_hook(__FILE__, array($this, 'activate'));
+        register_deactivation_hook(__FILE__, array($this, 'deactivate'));
+        
         // Admin hooks
         add_action('admin_menu', array($this, 'add_admin_menu'));
         add_action('admin_init', array($this, 'settings_init'));
         add_action('admin_enqueue_scripts', array($this, 'admin_enqueue_scripts'));
+        add_action('admin_post_ypg_save_playlist', array($this, 'save_playlist'));
+        add_action('admin_post_ypg_delete_playlist', array($this, 'delete_playlist'));
         
         // Frontend hooks
         add_shortcode('youtube_playlist_gallery', array($this, 'render_gallery'));
+        add_shortcode('ypg_playlist', array($this, 'render_saved_playlist'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
         
         // AJAX hooks
         add_action('wp_ajax_ypg_load_more', array($this, 'ajax_load_more'));
         add_action('wp_ajax_nopriv_ypg_load_more', array($this, 'ajax_load_more'));
         add_action('wp_ajax_ypg_clear_cache', array($this, 'ajax_clear_cache'));
+        add_action('wp_ajax_ypg_duplicate_playlist', array($this, 'ajax_duplicate_playlist'));
         
         // Widget
         add_action('widgets_init', array($this, 'register_widget'));
         
         // Load text domain
         add_action('plugins_loaded', array($this, 'load_textdomain'));
+    }
+
+    /**
+     * Plugin activation
+     */
+    public function activate() {
+        global $wpdb;
+        
+        $charset_collate = $wpdb->get_charset_collate();
+        
+        $sql = "CREATE TABLE IF NOT EXISTS {$this->table_name} (
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            name varchar(255) NOT NULL,
+            playlist_id varchar(255) NOT NULL,
+            layout varchar(50) DEFAULT 'grid',
+            columns tinyint(1) DEFAULT 3,
+            max_results smallint(3) DEFAULT 10,
+            show_title tinyint(1) DEFAULT 1,
+            show_description tinyint(1) DEFAULT 0,
+            lightbox tinyint(1) DEFAULT 1,
+            pagination tinyint(1) DEFAULT 0,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id)
+        ) $charset_collate;";
+        
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+        
+        // Set default options
+        if (!get_option($this->option_name)) {
+            add_option($this->option_name, array(
+                'api_key' => '',
+                'cache_enabled' => true,
+                'cache_duration' => 1,
+            ));
+        }
+    }
+
+    /**
+     * Plugin deactivation
+     */
+    public function deactivate() {
+        // Cleanup if needed
     }
 
     /**
@@ -63,15 +119,48 @@ class YouTube_Playlist_Gallery {
     }
 
     /**
-     * Add admin menu
+     * Add admin menu - MAIN MENU (not in settings)
      */
     public function add_admin_menu() {
-        add_options_page(
-            __('YouTube Playlist Gallery', 'youtube-playlist-gallery'),
-            __('YT Playlist Gallery', 'youtube-playlist-gallery'),
+        // Main menu page
+        add_menu_page(
+            __('YT Playlists', 'youtube-playlist-gallery'),
+            __('YT Playlists', 'youtube-playlist-gallery'),
             'manage_options',
             'youtube-playlist-gallery',
-            array($this, 'options_page')
+            array($this, 'playlists_page'),
+            'dashicons-video-alt3',
+            30
+        );
+        
+        // Submenu: All Playlists
+        add_submenu_page(
+            'youtube-playlist-gallery',
+            __('Tutte le Playlist', 'youtube-playlist-gallery'),
+            __('Tutte le Playlist', 'youtube-playlist-gallery'),
+            'manage_options',
+            'youtube-playlist-gallery',
+            array($this, 'playlists_page')
+        );
+        
+        // Submenu: Add New
+        add_submenu_page(
+            'youtube-playlist-gallery',
+            __('Aggiungi Nuova', 'youtube-playlist-gallery'),
+            __('Aggiungi Nuova', 'youtube-playlist-gallery'),
+            'manage_options',
+            'youtube-playlist-gallery-add',
+            array($this, 'add_playlist_page')
+        );
+        
+        // Submenu: Settings
+        add_submenu_page(
+            'youtube-playlist-gallery',
+            __('Impostazioni', 'youtube-playlist-gallery'),
+            __('Impostazioni', 'youtube-playlist-gallery'),
+            'manage_options',
+            'youtube-playlist-gallery-settings',
+            array($this, 'settings_page')
         );
     }
 
@@ -95,54 +184,6 @@ class YouTube_Playlist_Gallery {
             array($this, 'api_key_render'),
             'youtube_playlist_gallery',
             'ypg_api_section'
-        );
-
-        // Display Settings Section
-        add_settings_section(
-            'ypg_display_section',
-            __('Impostazioni Visualizzazione', 'youtube-playlist-gallery'),
-            null,
-            'youtube_playlist_gallery'
-        );
-
-        add_settings_field(
-            'default_layout',
-            __('Layout Predefinito', 'youtube-playlist-gallery'),
-            array($this, 'default_layout_render'),
-            'youtube_playlist_gallery',
-            'ypg_display_section'
-        );
-
-        add_settings_field(
-            'default_columns',
-            __('Colonne Predefinite', 'youtube-playlist-gallery'),
-            array($this, 'default_columns_render'),
-            'youtube_playlist_gallery',
-            'ypg_display_section'
-        );
-
-        add_settings_field(
-            'lightbox_enabled',
-            __('Abilita Lightbox', 'youtube-playlist-gallery'),
-            array($this, 'lightbox_enabled_render'),
-            'youtube_playlist_gallery',
-            'ypg_display_section'
-        );
-
-        add_settings_field(
-            'show_title',
-            __('Mostra Titolo Video', 'youtube-playlist-gallery'),
-            array($this, 'show_title_render'),
-            'youtube_playlist_gallery',
-            'ypg_display_section'
-        );
-
-        add_settings_field(
-            'show_description',
-            __('Mostra Descrizione', 'youtube-playlist-gallery'),
-            array($this, 'show_description_render'),
-            'youtube_playlist_gallery',
-            'ypg_display_section'
         );
 
         // Cache Settings Section
@@ -178,26 +219,6 @@ class YouTube_Playlist_Gallery {
 
         if (isset($input['api_key'])) {
             $sanitized['api_key'] = sanitize_text_field(trim($input['api_key']));
-        }
-
-        if (isset($input['default_layout'])) {
-            $sanitized['default_layout'] = sanitize_text_field($input['default_layout']);
-        }
-
-        if (isset($input['default_columns'])) {
-            $sanitized['default_columns'] = absint($input['default_columns']);
-        }
-
-        if (isset($input['lightbox_enabled'])) {
-            $sanitized['lightbox_enabled'] = (bool)$input['lightbox_enabled'];
-        }
-
-        if (isset($input['show_title'])) {
-            $sanitized['show_title'] = (bool)$input['show_title'];
-        }
-
-        if (isset($input['show_description'])) {
-            $sanitized['show_description'] = (bool)$input['show_description'];
         }
 
         if (isset($input['cache_enabled'])) {
@@ -240,75 +261,6 @@ class YouTube_Playlist_Gallery {
         <?php
     }
 
-    public function default_layout_render() {
-        $options = get_option($this->option_name);
-        $value = isset($options['default_layout']) ? $options['default_layout'] : 'grid';
-        ?>
-        <select name='<?php echo esc_attr($this->option_name); ?>[default_layout]'>
-            <option value='grid' <?php selected($value, 'grid'); ?>><?php _e('Griglia', 'youtube-playlist-gallery'); ?></option>
-            <option value='list' <?php selected($value, 'list'); ?>><?php _e('Lista', 'youtube-playlist-gallery'); ?></option>
-            <option value='masonry' <?php selected($value, 'masonry'); ?>><?php _e('Masonry', 'youtube-playlist-gallery'); ?></option>
-            <option value='carousel' <?php selected($value, 'carousel'); ?>><?php _e('Carosello', 'youtube-playlist-gallery'); ?></option>
-        </select>
-        <?php
-    }
-
-    public function default_columns_render() {
-        $options = get_option($this->option_name);
-        $value = isset($options['default_columns']) ? $options['default_columns'] : 3;
-        ?>
-        <input type='number' 
-               name='<?php echo esc_attr($this->option_name); ?>[default_columns]' 
-               value='<?php echo esc_attr($value); ?>' 
-               min='1' 
-               max='6'
-               class="small-text">
-        <p class="description"><?php _e('Numero di colonne per il layout a griglia (1-6)', 'youtube-playlist-gallery'); ?></p>
-        <?php
-    }
-
-    public function lightbox_enabled_render() {
-        $options = get_option($this->option_name);
-        $value = isset($options['lightbox_enabled']) ? $options['lightbox_enabled'] : true;
-        ?>
-        <label>
-            <input type='checkbox' 
-                   name='<?php echo esc_attr($this->option_name); ?>[lightbox_enabled]' 
-                   value='1' 
-                   <?php checked($value, true); ?>>
-            <?php _e('Apri video in lightbox invece che in nuova finestra', 'youtube-playlist-gallery'); ?>
-        </label>
-        <?php
-    }
-
-    public function show_title_render() {
-        $options = get_option($this->option_name);
-        $value = isset($options['show_title']) ? $options['show_title'] : true;
-        ?>
-        <label>
-            <input type='checkbox' 
-                   name='<?php echo esc_attr($this->option_name); ?>[show_title]' 
-                   value='1' 
-                   <?php checked($value, true); ?>>
-            <?php _e('Mostra il titolo del video sotto la thumbnail', 'youtube-playlist-gallery'); ?>
-        </label>
-        <?php
-    }
-
-    public function show_description_render() {
-        $options = get_option($this->option_name);
-        $value = isset($options['show_description']) ? $options['show_description'] : false;
-        ?>
-        <label>
-            <input type='checkbox' 
-                   name='<?php echo esc_attr($this->option_name); ?>[show_description]' 
-                   value='1' 
-                   <?php checked($value, true); ?>>
-            <?php _e('Mostra la descrizione del video', 'youtube-playlist-gallery'); ?>
-        </label>
-        <?php
-    }
-
     public function cache_enabled_render() {
         $options = get_option($this->option_name);
         $value = isset($options['cache_enabled']) ? $options['cache_enabled'] : true;
@@ -338,95 +290,551 @@ class YouTube_Playlist_Gallery {
     }
 
     /**
-     * Options page
+     * All Playlists page
      */
-    public function options_page() {
+    public function playlists_page() {
+        global $wpdb;
+        
+        // Handle edit
+        $edit_id = isset($_GET['edit']) ? intval($_GET['edit']) : 0;
+        if ($edit_id) {
+            $this->edit_playlist_page($edit_id);
+            return;
+        }
+        
+        $playlists = $wpdb->get_results("SELECT * FROM {$this->table_name} ORDER BY created_at DESC");
+        
+        ?>
+        <div class="wrap">
+            <h1 class="wp-heading-inline"><?php _e('Tutte le Playlist', 'youtube-playlist-gallery'); ?></h1>
+            <a href="<?php echo admin_url('admin.php?page=youtube-playlist-gallery-add'); ?>" class="page-title-action">
+                <?php _e('Aggiungi Nuova', 'youtube-playlist-gallery'); ?>
+            </a>
+            
+            <?php if (isset($_GET['deleted']) && $_GET['deleted'] == '1'): ?>
+                <div class="notice notice-success is-dismissible">
+                    <p><?php _e('Playlist eliminata con successo!', 'youtube-playlist-gallery'); ?></p>
+                </div>
+            <?php endif; ?>
+            
+            <?php if (isset($_GET['duplicated']) && $_GET['duplicated'] == '1'): ?>
+                <div class="notice notice-success is-dismissible">
+                    <p><?php _e('Playlist duplicata con successo!', 'youtube-playlist-gallery'); ?></p>
+                </div>
+            <?php endif; ?>
+            
+            <hr class="wp-header-end">
+            
+            <?php if (empty($playlists)): ?>
+                <div class="ypg-empty-state">
+                    <div class="ypg-empty-icon">📺</div>
+                    <h2><?php _e('Nessuna playlist ancora', 'youtube-playlist-gallery'); ?></h2>
+                    <p><?php _e('Crea la tua prima playlist YouTube per iniziare!', 'youtube-playlist-gallery'); ?></p>
+                    <a href="<?php echo admin_url('admin.php?page=youtube-playlist-gallery-add'); ?>" class="button button-primary button-hero">
+                        <?php _e('Crea Prima Playlist', 'youtube-playlist-gallery'); ?>
+                    </a>
+                </div>
+            <?php else: ?>
+                <table class="wp-list-table widefat fixed striped">
+                    <thead>
+                        <tr>
+                            <th width="30%"><?php _e('Nome', 'youtube-playlist-gallery'); ?></th>
+                            <th width="25%"><?php _e('Playlist ID', 'youtube-playlist-gallery'); ?></th>
+                            <th width="15%"><?php _e('Layout', 'youtube-playlist-gallery'); ?></th>
+                            <th width="15%"><?php _e('Shortcode', 'youtube-playlist-gallery'); ?></th>
+                            <th width="15%"><?php _e('Azioni', 'youtube-playlist-gallery'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($playlists as $playlist): ?>
+                            <tr>
+                                <td>
+                                    <strong>
+                                        <a href="<?php echo admin_url('admin.php?page=youtube-playlist-gallery&edit=' . $playlist->id); ?>">
+                                            <?php echo esc_html($playlist->name); ?>
+                                        </a>
+                                    </strong>
+                                </td>
+                                <td><code><?php echo esc_html($playlist->playlist_id); ?></code></td>
+                                <td>
+                                    <span class="ypg-badge ypg-badge-<?php echo esc_attr($playlist->layout); ?>">
+                                        <?php echo ucfirst($playlist->layout); ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <input type="text" 
+                                           readonly 
+                                           value='[ypg_playlist id="<?php echo $playlist->id; ?>"]' 
+                                           class="ypg-shortcode-field"
+                                           onclick="this.select()">
+                                </td>
+                                <td>
+                                    <a href="<?php echo admin_url('admin.php?page=youtube-playlist-gallery&edit=' . $playlist->id); ?>" 
+                                       class="button button-small">
+                                        <?php _e('Modifica', 'youtube-playlist-gallery'); ?>
+                                    </a>
+                                    <button type="button" 
+                                            class="button button-small ypg-duplicate-btn" 
+                                            data-id="<?php echo $playlist->id; ?>">
+                                        <?php _e('Duplica', 'youtube-playlist-gallery'); ?>
+                                    </button>
+                                    <a href="<?php echo wp_nonce_url(admin_url('admin-post.php?action=ypg_delete_playlist&id=' . $playlist->id), 'ypg_delete_' . $playlist->id); ?>" 
+                                       class="button button-small button-link-delete"
+                                       onclick="return confirm('<?php _e('Sei sicuro di voler eliminare questa playlist?', 'youtube-playlist-gallery'); ?>')">
+                                        <?php _e('Elimina', 'youtube-playlist-gallery'); ?>
+                                    </a>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
+        </div>
+        
+        <style>
+        .ypg-empty-state {
+            text-align: center;
+            padding: 80px 20px;
+        }
+        .ypg-empty-icon {
+            font-size: 72px;
+            margin-bottom: 20px;
+        }
+        .ypg-empty-state h2 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        .ypg-empty-state p {
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 30px;
+        }
+        .ypg-shortcode-field {
+            width: 100%;
+            font-size: 11px;
+            padding: 4px 8px;
+        }
+        .ypg-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .ypg-badge-grid { background: #e3f2fd; color: #1976d2; }
+        .ypg-badge-list { background: #f3e5f5; color: #7b1fa2; }
+        .ypg-badge-masonry { background: #fff3e0; color: #e65100; }
+        .ypg-badge-carousel { background: #e8f5e9; color: #2e7d32; }
+        </style>
+        <?php
+    }
+
+    /**
+     * Add/Edit Playlist page
+     */
+    public function add_playlist_page() {
+        $this->edit_playlist_page(0);
+    }
+
+    /**
+     * Edit Playlist page
+     */
+    public function edit_playlist_page($playlist_id = 0) {
+        global $wpdb;
+        
+        $is_edit = $playlist_id > 0;
+        $playlist = null;
+        
+        if ($is_edit) {
+            $playlist = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->table_name} WHERE id = %d", $playlist_id));
+            if (!$playlist) {
+                wp_die(__('Playlist non trovata', 'youtube-playlist-gallery'));
+            }
+        }
+        
+        $name = $is_edit ? $playlist->name : '';
+        $playlist_id_value = $is_edit ? $playlist->playlist_id : '';
+        $layout = $is_edit ? $playlist->layout : 'grid';
+        $columns = $is_edit ? $playlist->columns : 3;
+        $max_results = $is_edit ? $playlist->max_results : 10;
+        $show_title = $is_edit ? $playlist->show_title : 1;
+        $show_description = $is_edit ? $playlist->show_description : 0;
+        $lightbox = $is_edit ? $playlist->lightbox : 1;
+        $pagination = $is_edit ? $playlist->pagination : 0;
+        
+        ?>
+        <div class="wrap">
+            <h1><?php echo $is_edit ? __('Modifica Playlist', 'youtube-playlist-gallery') : __('Aggiungi Nuova Playlist', 'youtube-playlist-gallery'); ?></h1>
+            
+            <?php if (isset($_GET['saved']) && $_GET['saved'] == '1'): ?>
+                <div class="notice notice-success is-dismissible">
+                    <p><?php _e('Playlist salvata con successo!', 'youtube-playlist-gallery'); ?></p>
+                </div>
+            <?php endif; ?>
+            
+            <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" class="ypg-form">
+                <input type="hidden" name="action" value="ypg_save_playlist">
+                <?php if ($is_edit): ?>
+                    <input type="hidden" name="playlist_id" value="<?php echo $playlist->id; ?>">
+                <?php endif; ?>
+                <?php wp_nonce_field('ypg_save_playlist', 'ypg_nonce'); ?>
+                
+                <div class="ypg-form-row">
+                    <div class="ypg-form-main">
+                        <div class="postbox">
+                            <div class="postbox-header">
+                                <h2><?php _e('Informazioni Playlist', 'youtube-playlist-gallery'); ?></h2>
+                            </div>
+                            <div class="inside">
+                                <table class="form-table">
+                                    <tr>
+                                        <th scope="row">
+                                            <label for="ypg_name"><?php _e('Nome Playlist', 'youtube-playlist-gallery'); ?> *</label>
+                                        </th>
+                                        <td>
+                                            <input type="text" 
+                                                   name="name" 
+                                                   id="ypg_name" 
+                                                   value="<?php echo esc_attr($name); ?>" 
+                                                   class="regular-text" 
+                                                   required>
+                                            <p class="description"><?php _e('Un nome descrittivo per identificare questa playlist (es. "Video Tutorial", "Recensioni Prodotti")', 'youtube-playlist-gallery'); ?></p>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">
+                                            <label for="ypg_playlist_id"><?php _e('YouTube Playlist ID', 'youtube-playlist-gallery'); ?> *</label>
+                                        </th>
+                                        <td>
+                                            <input type="text" 
+                                                   name="playlist_id" 
+                                                   id="ypg_playlist_id" 
+                                                   value="<?php echo esc_attr($playlist_id_value); ?>" 
+                                                   class="regular-text" 
+                                                   required>
+                                            <p class="description">
+                                                <?php _e('L\'ID della playlist YouTube. Si trova nell\'URL dopo "list=". Esempio:', 'youtube-playlist-gallery'); ?>
+                                                <br><code>https://www.youtube.com/playlist?list=<strong>PLrAXtmErZgOeiKm4...</strong></code>
+                                            </p>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <div class="postbox">
+                            <div class="postbox-header">
+                                <h2><?php _e('Impostazioni Visualizzazione', 'youtube-playlist-gallery'); ?></h2>
+                            </div>
+                            <div class="inside">
+                                <table class="form-table">
+                                    <tr>
+                                        <th scope="row">
+                                            <label for="ypg_layout"><?php _e('Layout', 'youtube-playlist-gallery'); ?></label>
+                                        </th>
+                                        <td>
+                                            <select name="layout" id="ypg_layout">
+                                                <option value="grid" <?php selected($layout, 'grid'); ?>><?php _e('Griglia', 'youtube-playlist-gallery'); ?></option>
+                                                <option value="list" <?php selected($layout, 'list'); ?>><?php _e('Lista', 'youtube-playlist-gallery'); ?></option>
+                                                <option value="masonry" <?php selected($layout, 'masonry'); ?>><?php _e('Masonry', 'youtube-playlist-gallery'); ?></option>
+                                                <option value="carousel" <?php selected($layout, 'carousel'); ?>><?php _e('Carosello', 'youtube-playlist-gallery'); ?></option>
+                                            </select>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">
+                                            <label for="ypg_columns"><?php _e('Colonne', 'youtube-playlist-gallery'); ?></label>
+                                        </th>
+                                        <td>
+                                            <input type="number" 
+                                                   name="columns" 
+                                                   id="ypg_columns" 
+                                                   value="<?php echo esc_attr($columns); ?>" 
+                                                   min="1" 
+                                                   max="6" 
+                                                   class="small-text">
+                                            <p class="description"><?php _e('Numero di colonne per il layout a griglia (1-6)', 'youtube-playlist-gallery'); ?></p>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">
+                                            <label for="ypg_max_results"><?php _e('Numero Video', 'youtube-playlist-gallery'); ?></label>
+                                        </th>
+                                        <td>
+                                            <input type="number" 
+                                                   name="max_results" 
+                                                   id="ypg_max_results" 
+                                                   value="<?php echo esc_attr($max_results); ?>" 
+                                                   min="1" 
+                                                   max="50" 
+                                                   class="small-text">
+                                            <p class="description"><?php _e('Numero massimo di video da visualizzare (1-50)', 'youtube-playlist-gallery'); ?></p>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row"><?php _e('Opzioni', 'youtube-playlist-gallery'); ?></th>
+                                        <td>
+                                            <fieldset>
+                                                <label>
+                                                    <input type="checkbox" name="show_title" value="1" <?php checked($show_title, 1); ?>>
+                                                    <?php _e('Mostra titolo video', 'youtube-playlist-gallery'); ?>
+                                                </label><br>
+                                                <label>
+                                                    <input type="checkbox" name="show_description" value="1" <?php checked($show_description, 1); ?>>
+                                                    <?php _e('Mostra descrizione video', 'youtube-playlist-gallery'); ?>
+                                                </label><br>
+                                                <label>
+                                                    <input type="checkbox" name="lightbox" value="1" <?php checked($lightbox, 1); ?>>
+                                                    <?php _e('Abilita lightbox (apri video in overlay)', 'youtube-playlist-gallery'); ?>
+                                                </label><br>
+                                                <label>
+                                                    <input type="checkbox" name="pagination" value="1" <?php checked($pagination, 1); ?>>
+                                                    <?php _e('Abilita paginazione (bottone "Carica altri")', 'youtube-playlist-gallery'); ?>
+                                                </label>
+                                            </fieldset>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="ypg-form-sidebar">
+                        <div class="postbox">
+                            <div class="postbox-header">
+                                <h2><?php _e('Pubblica', 'youtube-playlist-gallery'); ?></h2>
+                            </div>
+                            <div class="inside">
+                                <div class="submitbox">
+                                    <div class="major-publishing-actions">
+                                        <div class="publishing-action">
+                                            <input type="submit" 
+                                                   name="submit" 
+                                                   class="button button-primary button-large" 
+                                                   value="<?php echo $is_edit ? __('Aggiorna Playlist', 'youtube-playlist-gallery') : __('Crea Playlist', 'youtube-playlist-gallery'); ?>">
+                                        </div>
+                                        <div class="clear"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <?php if ($is_edit): ?>
+                        <div class="postbox">
+                            <div class="postbox-header">
+                                <h2><?php _e('Shortcode', 'youtube-playlist-gallery'); ?></h2>
+                            </div>
+                            <div class="inside">
+                                <p><?php _e('Usa questo shortcode per visualizzare la playlist:', 'youtube-playlist-gallery'); ?></p>
+                                <input type="text" 
+                                       readonly 
+                                       value='[ypg_playlist id="<?php echo $playlist->id; ?>"]' 
+                                       class="widefat"
+                                       onclick="this.select()">
+                                <p class="description" style="margin-top: 10px;">
+                                    <?php _e('Copia e incolla questo shortcode in qualsiasi pagina o post.', 'youtube-playlist-gallery'); ?>
+                                </p>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                        
+                        <div class="postbox">
+                            <div class="postbox-header">
+                                <h2><?php _e('Aiuto', 'youtube-playlist-gallery'); ?></h2>
+                            </div>
+                            <div class="inside">
+                                <h4><?php _e('Come trovare l\'ID Playlist?', 'youtube-playlist-gallery'); ?></h4>
+                                <ol style="padding-left: 20px;">
+                                    <li><?php _e('Vai su YouTube', 'youtube-playlist-gallery'); ?></li>
+                                    <li><?php _e('Apri la playlist desiderata', 'youtube-playlist-gallery'); ?></li>
+                                    <li><?php _e('Copia l\'ID dall\'URL dopo "list="', 'youtube-playlist-gallery'); ?></li>
+                                </ol>
+                                
+                                <h4 style="margin-top: 15px;"><?php _e('Documentazione', 'youtube-playlist-gallery'); ?></h4>
+                                <p>
+                                    <a href="<?php echo YPG_PLUGIN_URL; ?>README.md" target="_blank">
+                                        <?php _e('Leggi la guida completa', 'youtube-playlist-gallery'); ?>
+                                    </a>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+        
+        <style>
+        .ypg-form-row {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .ypg-form-main .postbox {
+            margin-bottom: 20px;
+        }
+        .ypg-form-sidebar .postbox {
+            margin-bottom: 20px;
+        }
+        @media (max-width: 1200px) {
+            .ypg-form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+        </style>
+        <?php
+    }
+
+    /**
+     * Settings page
+     */
+    public function settings_page() {
         ?>
         <div class="wrap">
             <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
             
-            <div class="ypg-admin-wrapper">
-                <div class="ypg-admin-main">
-                    <form action='options.php' method='post'>
-                        <?php
-                        settings_fields('ypg_plugin');
-                        do_settings_sections('youtube_playlist_gallery');
-                        submit_button();
-                        ?>
-                    </form>
-                </div>
-                
-                <div class="ypg-admin-sidebar">
-                    <div class="ypg-box">
-                        <h3><?php _e('Shortcode Generator', 'youtube-playlist-gallery'); ?></h3>
-                        <p><?php _e('Genera uno shortcode personalizzato:', 'youtube-playlist-gallery'); ?></p>
-                        
-                        <label><?php _e('Playlist ID:', 'youtube-playlist-gallery'); ?></label>
-                        <input type="text" id="ypg-sg-playlist" class="regular-text" placeholder="PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf">
-                        
-                        <label><?php _e('Layout:', 'youtube-playlist-gallery'); ?></label>
-                        <select id="ypg-sg-layout">
-                            <option value="grid"><?php _e('Griglia', 'youtube-playlist-gallery'); ?></option>
-                            <option value="list"><?php _e('Lista', 'youtube-playlist-gallery'); ?></option>
-                            <option value="masonry"><?php _e('Masonry', 'youtube-playlist-gallery'); ?></option>
-                            <option value="carousel"><?php _e('Carosello', 'youtube-playlist-gallery'); ?></option>
-                        </select>
-                        
-                        <label><?php _e('Colonne:', 'youtube-playlist-gallery'); ?></label>
-                        <input type="number" id="ypg-sg-columns" value="3" min="1" max="6" class="small-text">
-                        
-                        <label><?php _e('Max Risultati:', 'youtube-playlist-gallery'); ?></label>
-                        <input type="number" id="ypg-sg-max" value="10" min="1" max="50" class="small-text">
-                        
-                        <label>
-                            <input type="checkbox" id="ypg-sg-pagination">
-                            <?php _e('Paginazione', 'youtube-playlist-gallery'); ?>
-                        </label>
-                        
-                        <button type="button" class="button button-primary" id="ypg-generate-shortcode">
-                            <?php _e('Genera Shortcode', 'youtube-playlist-gallery'); ?>
-                        </button>
-                        
-                        <div id="ypg-shortcode-output" style="display:none; margin-top: 15px;">
-                            <label><?php _e('Shortcode Generato:', 'youtube-playlist-gallery'); ?></label>
-                            <input type="text" readonly class="regular-text" id="ypg-shortcode-text">
-                            <button type="button" class="button" id="ypg-copy-shortcode"><?php _e('Copia', 'youtube-playlist-gallery'); ?></button>
-                        </div>
-                    </div>
-                    
-                    <div class="ypg-box">
-                        <h3><?php _e('Documentazione', 'youtube-playlist-gallery'); ?></h3>
-                        <p><?php _e('Esempio di utilizzo:', 'youtube-playlist-gallery'); ?></p>
-                        <code>[youtube_playlist_gallery playlist_id="PLxxx..." max_results="12" layout="grid" columns="3"]</code>
-                        
-                        <h4><?php _e('Parametri disponibili:', 'youtube-playlist-gallery'); ?></h4>
-                        <ul style="list-style: disc; padding-left: 20px;">
-                            <li><strong>playlist_id</strong>: <?php _e('ID della playlist (obbligatorio)', 'youtube-playlist-gallery'); ?></li>
-                            <li><strong>max_results</strong>: <?php _e('Numero massimo di video (default: 10)', 'youtube-playlist-gallery'); ?></li>
-                            <li><strong>layout</strong>: <?php _e('grid, list, masonry, carousel (default: grid)', 'youtube-playlist-gallery'); ?></li>
-                            <li><strong>columns</strong>: <?php _e('Numero di colonne 1-6 (default: 3)', 'youtube-playlist-gallery'); ?></li>
-                            <li><strong>pagination</strong>: <?php _e('true/false (default: false)', 'youtube-playlist-gallery'); ?></li>
-                            <li><strong>show_title</strong>: <?php _e('true/false (default: true)', 'youtube-playlist-gallery'); ?></li>
-                            <li><strong>show_description</strong>: <?php _e('true/false (default: false)', 'youtube-playlist-gallery'); ?></li>
-                        </ul>
-                    </div>
-                    
-                    <div class="ypg-box ypg-support">
-                        <h3><?php _e('Supporto', 'youtube-playlist-gallery'); ?></h3>
-                        <p><?php _e('Hai bisogno di aiuto? Contatta dway per supporto.', 'youtube-playlist-gallery'); ?></p>
-                        <p><strong><?php _e('Versione:', 'youtube-playlist-gallery'); ?></strong> <?php echo YPG_VERSION; ?></p>
-                    </div>
-                </div>
+            <form action='options.php' method='post'>
+                <?php
+                settings_fields('ypg_plugin');
+                do_settings_sections('youtube_playlist_gallery');
+                submit_button();
+                ?>
+            </form>
+            
+            <div class="ypg-settings-help">
+                <h2><?php _e('Documentazione', 'youtube-playlist-gallery'); ?></h2>
+                <p><?php _e('Per maggiori informazioni, consulta la documentazione completa del plugin.', 'youtube-playlist-gallery'); ?></p>
             </div>
         </div>
         <?php
     }
 
     /**
+     * Save playlist
+     */
+    public function save_playlist() {
+        if (!isset($_POST['ypg_nonce']) || !wp_verify_nonce($_POST['ypg_nonce'], 'ypg_save_playlist')) {
+            wp_die(__('Verifica di sicurezza fallita', 'youtube-playlist-gallery'));
+        }
+        
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Permessi insufficienti', 'youtube-playlist-gallery'));
+        }
+        
+        global $wpdb;
+        
+        $playlist_id = isset($_POST['playlist_id']) ? intval($_POST['playlist_id']) : 0;
+        $name = sanitize_text_field($_POST['name']);
+        $yt_playlist_id = sanitize_text_field($_POST['playlist_id']);
+        $layout = sanitize_text_field($_POST['layout']);
+        $columns = intval($_POST['columns']);
+        $max_results = intval($_POST['max_results']);
+        $show_title = isset($_POST['show_title']) ? 1 : 0;
+        $show_description = isset($_POST['show_description']) ? 1 : 0;
+        $lightbox = isset($_POST['lightbox']) ? 1 : 0;
+        $pagination = isset($_POST['pagination']) ? 1 : 0;
+        
+        $data = array(
+            'name' => $name,
+            'playlist_id' => $yt_playlist_id,
+            'layout' => $layout,
+            'columns' => $columns,
+            'max_results' => $max_results,
+            'show_title' => $show_title,
+            'show_description' => $show_description,
+            'lightbox' => $lightbox,
+            'pagination' => $pagination,
+        );
+        
+        if ($playlist_id > 0) {
+            // Update
+            $wpdb->update(
+                $this->table_name,
+                $data,
+                array('id' => $playlist_id),
+                array('%s', '%s', '%s', '%d', '%d', '%d', '%d', '%d', '%d'),
+                array('%d')
+            );
+            
+            wp_redirect(admin_url('admin.php?page=youtube-playlist-gallery&edit=' . $playlist_id . '&saved=1'));
+        } else {
+            // Insert
+            $wpdb->insert(
+                $this->table_name,
+                $data,
+                array('%s', '%s', '%s', '%d', '%d', '%d', '%d', '%d', '%d')
+            );
+            
+            $new_id = $wpdb->insert_id;
+            wp_redirect(admin_url('admin.php?page=youtube-playlist-gallery&edit=' . $new_id . '&saved=1'));
+        }
+        
+        exit;
+    }
+
+    /**
+     * Delete playlist
+     */
+    public function delete_playlist() {
+        $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+        
+        if (!$id || !wp_verify_nonce($_GET['_wpnonce'], 'ypg_delete_' . $id)) {
+            wp_die(__('Verifica di sicurezza fallita', 'youtube-playlist-gallery'));
+        }
+        
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Permessi insufficienti', 'youtube-playlist-gallery'));
+        }
+        
+        global $wpdb;
+        $wpdb->delete($this->table_name, array('id' => $id), array('%d'));
+        
+        wp_redirect(admin_url('admin.php?page=youtube-playlist-gallery&deleted=1'));
+        exit;
+    }
+
+    /**
+     * AJAX: Duplicate playlist
+     */
+    public function ajax_duplicate_playlist() {
+        check_ajax_referer('ypg_admin_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Permessi insufficienti', 'youtube-playlist-gallery')));
+        }
+        
+        $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
+        
+        if (!$id) {
+            wp_send_json_error(array('message' => __('ID non valido', 'youtube-playlist-gallery')));
+        }
+        
+        global $wpdb;
+        $playlist = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->table_name} WHERE id = %d", $id), ARRAY_A);
+        
+        if (!$playlist) {
+            wp_send_json_error(array('message' => __('Playlist non trovata', 'youtube-playlist-gallery')));
+        }
+        
+        unset($playlist['id']);
+        unset($playlist['created_at']);
+        unset($playlist['updated_at']);
+        $playlist['name'] = $playlist['name'] . ' (Copia)';
+        
+        $wpdb->insert($this->table_name, $playlist);
+        
+        wp_send_json_success(array(
+            'message' => __('Playlist duplicata con successo!', 'youtube-playlist-gallery'),
+            'redirect' => admin_url('admin.php?page=youtube-playlist-gallery&duplicated=1')
+        ));
+    }
+
+    /**
      * Enqueue admin scripts and styles
      */
     public function admin_enqueue_scripts($hook) {
-        if ('settings_page_youtube-playlist-gallery' !== $hook) {
+        if (strpos($hook, 'youtube-playlist-gallery') === false) {
             return;
         }
         
@@ -440,6 +848,7 @@ class YouTube_Playlist_Gallery {
                 'cache_cleared' => __('Cache svuotata con successo!', 'youtube-playlist-gallery'),
                 'error' => __('Errore durante l\'operazione.', 'youtube-playlist-gallery'),
                 'copied' => __('Shortcode copiato!', 'youtube-playlist-gallery'),
+                'confirm_delete' => __('Sei sicuro di voler eliminare questa playlist?', 'youtube-playlist-gallery'),
             )
         ));
     }
@@ -525,7 +934,41 @@ class YouTube_Playlist_Gallery {
     }
 
     /**
-     * Render gallery shortcode
+     * Render saved playlist shortcode
+     */
+    public function render_saved_playlist($atts) {
+        $atts = shortcode_atts(array(
+            'id' => 0,
+        ), $atts);
+        
+        $id = intval($atts['id']);
+        
+        if (!$id) {
+            return '<div class="ypg-error"><p>' . __('⚠️ ID playlist non valido.', 'youtube-playlist-gallery') . '</p></div>';
+        }
+        
+        global $wpdb;
+        $playlist = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->table_name} WHERE id = %d", $id));
+        
+        if (!$playlist) {
+            return '<div class="ypg-error"><p>' . __('⚠️ Playlist non trovata.', 'youtube-playlist-gallery') . '</p></div>';
+        }
+        
+        // Render using the saved settings
+        return $this->render_gallery(array(
+            'playlist_id' => $playlist->playlist_id,
+            'layout' => $playlist->layout,
+            'columns' => $playlist->columns,
+            'max_results' => $playlist->max_results,
+            'show_title' => $playlist->show_title,
+            'show_description' => $playlist->show_description,
+            'lightbox' => $playlist->lightbox,
+            'pagination' => $playlist->pagination,
+        ));
+    }
+
+    /**
+     * Render gallery shortcode (original)
      */
     public function render_gallery($atts) {
         $options = get_option($this->option_name);
@@ -534,12 +977,12 @@ class YouTube_Playlist_Gallery {
         $atts = shortcode_atts(array(
             'playlist_id' => '',
             'max_results' => 10,
-            'layout' => isset($options['default_layout']) ? $options['default_layout'] : 'grid',
-            'columns' => isset($options['default_columns']) ? $options['default_columns'] : 3,
+            'layout' => 'grid',
+            'columns' => 3,
             'pagination' => false,
-            'show_title' => isset($options['show_title']) ? $options['show_title'] : true,
-            'show_description' => isset($options['show_description']) ? $options['show_description'] : false,
-            'lightbox' => isset($options['lightbox_enabled']) ? $options['lightbox_enabled'] : true,
+            'show_title' => true,
+            'show_description' => false,
+            'lightbox' => true,
         ), $atts, 'youtube_playlist_gallery');
         
         // Sanitize
@@ -708,38 +1151,47 @@ class YPG_Widget extends WP_Widget {
     }
     
     public function widget($args, $instance) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'ypg_playlists';
+        
         echo $args['before_widget'];
         
         if (!empty($instance['title'])) {
             echo $args['before_title'] . apply_filters('widget_title', $instance['title']) . $args['after_title'];
         }
         
-        $playlist_id = !empty($instance['playlist_id']) ? $instance['playlist_id'] : '';
-        $max_results = !empty($instance['max_results']) ? intval($instance['max_results']) : 5;
+        $playlist_id = !empty($instance['saved_playlist']) ? intval($instance['saved_playlist']) : 0;
         
-        if (!empty($playlist_id)) {
-            echo do_shortcode('[youtube_playlist_gallery playlist_id="' . esc_attr($playlist_id) . '" max_results="' . esc_attr($max_results) . '" layout="list" columns="1"]');
+        if ($playlist_id) {
+            echo do_shortcode('[ypg_playlist id="' . $playlist_id . '"]');
         }
         
         echo $args['after_widget'];
     }
     
     public function form($instance) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'ypg_playlists';
+        
         $title = !empty($instance['title']) ? $instance['title'] : __('Video YouTube', 'youtube-playlist-gallery');
-        $playlist_id = !empty($instance['playlist_id']) ? $instance['playlist_id'] : '';
-        $max_results = !empty($instance['max_results']) ? $instance['max_results'] : 5;
+        $saved_playlist = !empty($instance['saved_playlist']) ? $instance['saved_playlist'] : '';
+        
+        $playlists = $wpdb->get_results("SELECT id, name FROM $table_name ORDER BY name ASC");
         ?>
         <p>
             <label for="<?php echo esc_attr($this->get_field_id('title')); ?>"><?php _e('Titolo:', 'youtube-playlist-gallery'); ?></label>
             <input class="widefat" id="<?php echo esc_attr($this->get_field_id('title')); ?>" name="<?php echo esc_attr($this->get_field_name('title')); ?>" type="text" value="<?php echo esc_attr($title); ?>">
         </p>
         <p>
-            <label for="<?php echo esc_attr($this->get_field_id('playlist_id')); ?>"><?php _e('Playlist ID:', 'youtube-playlist-gallery'); ?></label>
-            <input class="widefat" id="<?php echo esc_attr($this->get_field_id('playlist_id')); ?>" name="<?php echo esc_attr($this->get_field_name('playlist_id')); ?>" type="text" value="<?php echo esc_attr($playlist_id); ?>">
-        </p>
-        <p>
-            <label for="<?php echo esc_attr($this->get_field_id('max_results')); ?>"><?php _e('Numero Video:', 'youtube-playlist-gallery'); ?></label>
-            <input class="widefat" id="<?php echo esc_attr($this->get_field_id('max_results')); ?>" name="<?php echo esc_attr($this->get_field_name('max_results')); ?>" type="number" value="<?php echo esc_attr($max_results); ?>" min="1" max="20">
+            <label for="<?php echo esc_attr($this->get_field_id('saved_playlist')); ?>"><?php _e('Playlist:', 'youtube-playlist-gallery'); ?></label>
+            <select class="widefat" id="<?php echo esc_attr($this->get_field_id('saved_playlist')); ?>" name="<?php echo esc_attr($this->get_field_name('saved_playlist')); ?>">
+                <option value=""><?php _e('-- Seleziona Playlist --', 'youtube-playlist-gallery'); ?></option>
+                <?php foreach ($playlists as $playlist): ?>
+                    <option value="<?php echo $playlist->id; ?>" <?php selected($saved_playlist, $playlist->id); ?>>
+                        <?php echo esc_html($playlist->name); ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
         </p>
         <?php
     }
@@ -747,8 +1199,7 @@ class YPG_Widget extends WP_Widget {
     public function update($new_instance, $old_instance) {
         $instance = array();
         $instance['title'] = (!empty($new_instance['title'])) ? sanitize_text_field($new_instance['title']) : '';
-        $instance['playlist_id'] = (!empty($new_instance['playlist_id'])) ? sanitize_text_field($new_instance['playlist_id']) : '';
-        $instance['max_results'] = (!empty($new_instance['max_results'])) ? absint($new_instance['max_results']) : 5;
+        $instance['saved_playlist'] = (!empty($new_instance['saved_playlist'])) ? absint($new_instance['saved_playlist']) : '';
         return $instance;
     }
 }

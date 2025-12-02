@@ -1,7 +1,7 @@
 /**
  * YouTube Playlist Gallery - Admin JavaScript
- * Version: 2.0.0
- * Author: dway
+ * Version: 2.1.0
+ * Author: DWAY AGENCY
  */
 
 (function($) {
@@ -26,6 +26,51 @@
             $('#ypg-generate-shortcode').on('click', this.generateShortcode);
             $('#ypg-copy-shortcode').on('click', this.copyShortcode);
             $('#ypg-clear-cache').on('click', this.clearCache);
+            $('.ypg-duplicate-btn').on('click', this.duplicatePlaylist);
+            $('.ypg-shortcode-field').on('click', function() {
+                $(this).select();
+                document.execCommand('copy');
+                alert(ypgAdmin.strings.copied);
+            });
+        },
+        
+        /**
+         * Duplicate playlist
+         */
+        duplicatePlaylist: function(e) {
+            e.preventDefault();
+            
+            const $button = $(this);
+            const playlistId = $button.data('id');
+            const originalText = $button.text();
+            
+            if (!confirm('Vuoi duplicare questa playlist?')) {
+                return;
+            }
+            
+            $button.prop('disabled', true).text('Duplicazione...');
+            
+            $.ajax({
+                url: ypgAdmin.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'ypg_duplicate_playlist',
+                    nonce: ypgAdmin.nonce,
+                    id: playlistId
+                },
+                success: function(response) {
+                    if (response.success) {
+                        window.location.href = response.data.redirect;
+                    } else {
+                        alert(response.data.message || ypgAdmin.strings.error);
+                        $button.prop('disabled', false).text(originalText);
+                    }
+                },
+                error: function() {
+                    alert(ypgAdmin.strings.error);
+                    $button.prop('disabled', false).text(originalText);
+                }
+            });
         },
 
         /**
