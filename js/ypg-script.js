@@ -18,6 +18,7 @@
         init: function() {
             this.bindEvents();
             this.initCarousel();
+            this.initFeaturedLayout();
         },
 
         /**
@@ -32,8 +33,180 @@
             // Load more
             $(document).on('click', '.ypg-load-more', this.loadMore);
             
+            // Featured layout - click on thumbnail
+            $(document).on('click', '.ypg-layout-featured .ypg-thumb-item', this.switchFeaturedVideo);
+            
+            // Share
+            $(document).on('click', '.ypg-share-btn', this.openShareModal);
+            $(document).on('click', '.ypg-share-close, .ypg-share-overlay', this.closeShareModal);
+            $(document).on('click', '#ypg-share-copy', this.copyShareUrl);
+            
             // Lazy load high-res thumbnails
             this.lazyLoadThumbnails();
+        },
+        
+        /**
+         * Initialize featured layout
+         */
+        initFeaturedLayout: function() {
+            // Check if there's a video hash in URL
+            const hash = window.location.hash;
+            if (hash && hash.startsWith('#video=')) {
+                const videoId = hash.replace('#video=', '');
+                const $thumb = $('.ypg-layout-featured .ypg-thumb-item[data-video-id="' + videoId + '"]');
+                
+                if ($thumb.length) {
+                    // Switch to this video
+                    setTimeout(function() {
+                        $thumb.trigger('click');
+                    }, 500);
+                    return;
+                }
+            }
+            
+            // Mark first thumb as active (default)
+            $('.ypg-layout-featured .ypg-thumb-item').first().addClass('active');
+        },
+        
+        /**
+         * Switch featured video
+         */
+        switchFeaturedVideo: function(e) {
+            e.preventDefault();
+            
+            const $thumb = $(this);
+            const $wrapper = $thumb.closest('.ypg-gallery-wrapper');
+            const $featured = $wrapper.find('.ypg-featured-video');
+            const lightbox = $wrapper.data('lightbox') === 1;
+            
+            // Get video data from thumbnail
+            const videoId = $thumb.data('video-id');
+            const title = $thumb.data('title');
+            const description = $thumb.data('description');
+            const thumbHigh = $thumb.data('thumb-high');
+            
+            // Update active state
+            $wrapper.find('.ypg-thumb-item').removeClass('active');
+            $thumb.addClass('active');
+            
+            // Update featured video with fade effect
+            $featured.fadeOut(200, function() {
+                // Update video ID
+                $featured.data('video-id', videoId);
+                
+                // Update link
+                const $link = $featured.find('a');
+                if (lightbox) {
+                    $link.attr('data-video-id', videoId);
+                } else {
+                    $link.attr('href', 'https://www.youtube.com/watch?v=' + videoId);
+                }
+                
+                // Update image
+                $featured.find('.ypg-thumbnail img').attr('src', thumbHigh).attr('alt', title);
+                
+                // Update title
+                const $titleEl = $featured.find('.ypg-featured-title');
+                if ($titleEl.length) {
+                    $titleEl.text(title);
+                }
+                
+                // Update description
+                const $descEl = $featured.find('.ypg-featured-description');
+                if ($descEl.length && description) {
+                    $descEl.text(description);
+                }
+                
+                // Fade back in
+                $featured.fadeIn(200);
+                
+                // Scroll to featured video (smooth)
+                $('html, body').animate({
+                    scrollTop: $featured.offset().top - 100
+                }, 400);
+                
+                // Update URL hash (without page reload)
+                if (history.pushState) {
+                    history.pushState(null, null, '#video=' + videoId);
+                } else {
+                    window.location.hash = '#video=' + videoId;
+                }
+                
+                // Update share button
+                const $shareBtn = $wrapper.find('.ypg-share-btn');
+                if ($shareBtn.length) {
+                    $shareBtn.attr('data-video-id', videoId);
+                    $shareBtn.attr('data-video-title', title);
+                }
+            });
+        },
+        
+        /**
+         * Open share modal
+         */
+        openShareModal: function(e) {
+            e.preventDefault();
+            
+            const $button = $(this);
+            const $wrapper = $button.closest('.ypg-gallery-wrapper');
+            const $featuredVideo = $wrapper.find('.ypg-featured-video');
+            
+            // Get video ID from the currently displayed featured video
+            const videoId = $featuredVideo.data('video-id');
+            const videoTitle = $wrapper.find('.ypg-featured-title').text();
+            
+            // Generate share URL
+            const baseUrl = window.location.href.split('#')[0];
+            const shareUrl = baseUrl + '#video=' + videoId;
+            
+            // Set URL in modal
+            $('#ypg-share-url-input').val(shareUrl);
+            
+            // Update social share links
+            const encodedUrl = encodeURIComponent(shareUrl);
+            const encodedTitle = encodeURIComponent(videoTitle);
+            
+            $('.ypg-share-facebook').attr('href', 'https://www.facebook.com/sharer/sharer.php?u=' + encodedUrl);
+            $('.ypg-share-twitter').attr('href', 'https://twitter.com/intent/tweet?url=' + encodedUrl + '&text=' + encodedTitle);
+            $('.ypg-share-whatsapp').attr('href', 'https://wa.me/?text=' + encodedTitle + '%20' + encodedUrl);
+            
+            // Show modal
+            $('#ypg-share-modal').fadeIn(300);
+            
+            // Select URL for easy copying
+            setTimeout(function() {
+                $('#ypg-share-url-input').select();
+            }, 100);
+        },
+        
+        /**
+         * Close share modal
+         */
+        closeShareModal: function(e) {
+            e.preventDefault();
+            $('#ypg-share-modal').fadeOut(300);
+        },
+        
+        /**
+         * Copy share URL
+         */
+        copyShareUrl: function(e) {
+            e.preventDefault();
+            
+            const $input = $('#ypg-share-url-input');
+            const $button = $(this);
+            const originalText = $button.html();
+            
+            // Select and copy
+            $input.select();
+            document.execCommand('copy');
+            
+            // Visual feedback
+            $button.addClass('copied').html('<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 6L9 17L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Copiato!');
+            
+            setTimeout(function() {
+                $button.removeClass('copied').html(originalText);
+            }, 2000);
         },
 
         /**

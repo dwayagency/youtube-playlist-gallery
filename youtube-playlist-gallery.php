@@ -79,8 +79,8 @@ class YouTube_Playlist_Gallery {
             id mediumint(9) NOT NULL AUTO_INCREMENT,
             name varchar(255) NOT NULL,
             playlist_id varchar(255) NOT NULL,
-            layout varchar(50) DEFAULT 'grid',
-            columns tinyint(1) DEFAULT 3,
+            layout varchar(50) DEFAULT 'featured',
+            columns tinyint(1) DEFAULT 4,
             max_results smallint(3) DEFAULT 10,
             show_title tinyint(1) DEFAULT 1,
             show_description tinyint(1) DEFAULT 0,
@@ -455,8 +455,8 @@ class YouTube_Playlist_Gallery {
         
         $name = $is_edit ? $playlist->name : '';
         $playlist_id_value = $is_edit ? $playlist->playlist_id : '';
-        $layout = $is_edit ? $playlist->layout : 'grid';
-        $columns = $is_edit ? $playlist->columns : 3;
+        $layout = $is_edit ? $playlist->layout : 'featured';
+        $columns = $is_edit ? $playlist->columns : 4;
         $max_results = $is_edit ? $playlist->max_results : 10;
         $show_title = $is_edit ? $playlist->show_title : 1;
         $show_description = $is_edit ? $playlist->show_description : 0;
@@ -535,6 +535,7 @@ class YouTube_Playlist_Gallery {
                                         </th>
                                         <td>
                                             <select name="layout" id="ypg_layout">
+                                                <option value="featured" <?php selected($layout, 'featured'); ?>><?php _e('Featured (Video Grande + Miniature)', 'youtube-playlist-gallery'); ?></option>
                                                 <option value="grid" <?php selected($layout, 'grid'); ?>><?php _e('Griglia', 'youtube-playlist-gallery'); ?></option>
                                                 <option value="list" <?php selected($layout, 'list'); ?>><?php _e('Lista', 'youtube-playlist-gallery'); ?></option>
                                                 <option value="masonry" <?php selected($layout, 'masonry'); ?>><?php _e('Masonry', 'youtube-playlist-gallery'); ?></option>
@@ -977,7 +978,7 @@ class YouTube_Playlist_Gallery {
         $atts = shortcode_atts(array(
             'playlist_id' => '',
             'max_results' => 10,
-            'layout' => 'grid',
+            'layout' => 'featured',
             'columns' => 3,
             'pagination' => false,
             'show_title' => true,
@@ -1011,21 +1012,171 @@ class YouTube_Playlist_Gallery {
         
         // Build HTML
         ob_start();
-        ?>
-        <div id="<?php echo esc_attr($gallery_id); ?>" 
-             class="ypg-gallery-wrapper ypg-layout-<?php echo esc_attr($layout); ?>" 
-             data-playlist="<?php echo esc_attr($playlist_id); ?>"
-             data-max="<?php echo esc_attr($max_results); ?>"
-             data-lightbox="<?php echo $lightbox ? '1' : '0'; ?>">
-            
-            <div class="ypg-gallery ypg-columns-<?php echo esc_attr($columns); ?>">
+        
+        // Featured layout
+        if ($layout === 'featured') {
+            ?>
+            <div id="<?php echo esc_attr($gallery_id); ?>" 
+                 class="ypg-gallery-wrapper ypg-layout-featured" 
+                 data-playlist="<?php echo esc_attr($playlist_id); ?>"
+                 data-max="<?php echo esc_attr($max_results); ?>"
+                 data-lightbox="<?php echo $lightbox ? '1' : '0'; ?>">
+                
+                <?php
+                $first_item = $data['items'][0];
+                $video_id = $first_item['snippet']['resourceId']['videoId'];
+                $title = esc_html($first_item['snippet']['title']);
+                $description = isset($first_item['snippet']['description']) ? esc_html($first_item['snippet']['description']) : '';
+                
+                // Use highest quality thumbnail available
+                if (isset($first_item['snippet']['thumbnails']['maxres']['url'])) {
+                    $thumb_high = esc_url($first_item['snippet']['thumbnails']['maxres']['url']);
+                } elseif (isset($first_item['snippet']['thumbnails']['standard']['url'])) {
+                    $thumb_high = esc_url($first_item['snippet']['thumbnails']['standard']['url']);
+                } elseif (isset($first_item['snippet']['thumbnails']['high']['url'])) {
+                    $thumb_high = esc_url($first_item['snippet']['thumbnails']['high']['url']);
+                } else {
+                    $thumb_high = esc_url($first_item['snippet']['thumbnails']['medium']['url']);
+                }
+                
+                // Get current page URL for sharing
+                global $wp;
+                $current_url = home_url(add_query_arg(array(), $wp->request));
+                ?>
+                
+                <!-- Featured Video (Grande) -->
+                <div class="ypg-featured-main">
+                    <div class="ypg-featured-video" data-video-id="<?php echo esc_attr($video_id); ?>">
+                        <?php if ($lightbox): ?>
+                            <a href="#" class="ypg-video-link" data-video-id="<?php echo esc_attr($video_id); ?>">
+                        <?php else: ?>
+                            <a href="https://www.youtube.com/watch?v=<?php echo esc_attr($video_id); ?>" target="_blank" rel="noopener">
+                        <?php endif; ?>
+                            <div class="ypg-thumbnail">
+                                <img src="<?php echo $thumb_high; ?>" alt="<?php echo $title; ?>">
+                                <div class="ypg-play-overlay">
+                                    <svg class="ypg-play-icon" viewBox="0 0 68 48" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M66.52,7.74c-0.78-2.93-2.49-5.41-5.42-6.19C55.79,.13,34,0,34,0S12.21,.13,6.9,1.55 C3.97,2.33,2.27,4.81,1.48,7.74C0.06,13.05,0,24,0,24s0.06,10.95,1.48,16.26c0.78,2.93,2.49,5.41,5.42,6.19 C12.21,47.87,34,48,34,48s21.79-0.13,27.1-1.55c2.93-0.78,4.64-3.26,5.42-6.19C67.94,34.95,68,24,68,24S67.94,13.05,66.52,7.74z" fill="#f00"></path>
+                                        <path d="M 45,24 27,14 27,34" fill="#fff"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </a>
+                        <div class="ypg-featured-content">
+                            <?php if ($show_title): ?>
+                                <h2 class="ypg-featured-title"><?php echo $title; ?></h2>
+                            <?php endif; ?>
+                            
+                            <?php if (!empty($description)): ?>
+                                <div class="ypg-featured-description"><?php echo nl2br($description); ?></div>
+                            <?php endif; ?>
+                            
+                            <!-- Share Button -->
+                            <div class="ypg-featured-actions">
+                                <button class="ypg-share-btn" data-video-id="<?php echo esc_attr($video_id); ?>" data-video-title="<?php echo esc_attr($title); ?>">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M18 8C19.6569 8 21 6.65685 21 5C21 3.34315 19.6569 2 18 2C16.3431 2 15 3.34315 15 5C15 5.12548 15.0077 15.2491 15.0227 15.3716L7.56068 19.6247C7.0313 19.2373 6.38296 19 5.66667 19C3.45753 19 1.66667 20.7909 1.66667 23C1.66667 25.2091 3.45753 27 5.66667 27C7.8758 27 9.66667 25.2091 9.66667 23C9.66667 22.8745 9.6593 22.7506 9.64443 22.6284L17.1065 18.3753C17.636 18.7627 18.2844 19 19 19C20.6569 19 22 17.6569 22 16C22 14.3431 20.6569 13 19 13C17.3431 13 16 14.3431 16 16C16 16.1255 16.0073 16.2494 16.0221 16.3716L8.56005 20.6247C8.03066 20.2373 7.38233 20 6.66603 20C4.45689 20 2.66603 21.7909 2.66603 24C2.66603 26.2091 4.45689 28 6.66603 28C8.87517 28 10.666 26.2091 10.666 24C10.666 23.8745 10.6587 23.7506 10.6438 23.6284L18.106 19.3753C18.6354 19.7627 19.2837 20 20 20C21.6569 20 23 18.6569 23 17C23 15.3431 21.6569 14 20 14C18.3431 14 17 15.3431 17 17C17 17.1255 17.0073 17.2494 17.0221 17.3716L9.56005 21.6247C9.03066 21.2373 8.38233 21 7.66603 21C5.45689 21 3.66603 22.7909 3.66603 25C3.66603 27.2091 5.45689 29 7.66603 29C9.87517 29 11.666 27.2091 11.666 25" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                    </svg>
+                                    <?php _e('Condividi', 'youtube-playlist-gallery'); ?>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Miniature (Piccole) -->
+                <div class="ypg-featured-thumbs ypg-columns-<?php echo esc_attr($columns); ?>">
+                    <?php
+                    foreach ($data['items'] as $item) {
+                        $video_id = $item['snippet']['resourceId']['videoId'];
+                        $title = esc_html($item['snippet']['title']);
+                        
+                        // Use high quality for thumbnails
+                        if (isset($item['snippet']['thumbnails']['high']['url'])) {
+                            $thumb = esc_url($item['snippet']['thumbnails']['high']['url']);
+                        } else {
+                            $thumb = esc_url($item['snippet']['thumbnails']['medium']['url']);
+                        }
+                        
+                        // Use highest quality available for featured display
+                        if (isset($item['snippet']['thumbnails']['maxres']['url'])) {
+                            $thumb_high = esc_url($item['snippet']['thumbnails']['maxres']['url']);
+                        } elseif (isset($item['snippet']['thumbnails']['standard']['url'])) {
+                            $thumb_high = esc_url($item['snippet']['thumbnails']['standard']['url']);
+                        } elseif (isset($item['snippet']['thumbnails']['high']['url'])) {
+                            $thumb_high = esc_url($item['snippet']['thumbnails']['high']['url']);
+                        } else {
+                            $thumb_high = $thumb;
+                        }
+                        
+                        $description = isset($item['snippet']['description']) ? esc_html($item['snippet']['description']) : '';
+                        ?>
+                        <div class="ypg-thumb-item" 
+                             data-video-id="<?php echo esc_attr($video_id); ?>"
+                             data-title="<?php echo esc_attr($title); ?>"
+                             data-description="<?php echo esc_attr($description); ?>"
+                             data-thumb-high="<?php echo esc_attr($thumb_high); ?>">
+                            <div class="ypg-thumbnail">
+                                <img src="<?php echo $thumb; ?>" alt="<?php echo $title; ?>" loading="lazy">
+                                <div class="ypg-play-overlay-small">
+                                    <svg class="ypg-play-icon" viewBox="0 0 68 48" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M66.52,7.74c-0.78-2.93-2.49-5.41-5.42-6.19C55.79,.13,34,0,34,0S12.21,.13,6.9,1.55 C3.97,2.33,2.27,4.81,1.48,7.74C0.06,13.05,0,24,0,24s0.06,10.95,1.48,16.26c0.78,2.93,2.49,5.41,5.42,6.19 C12.21,47.87,34,48,34,48s21.79-0.13,27.1-1.55c2.93-0.78,4.64-3.26,5.42-6.19C67.94,34.95,68,24,68,24S67.94,13.05,66.52,7.74z" fill="#f00"></path>
+                                        <path d="M 45,24 27,14 27,34" fill="#fff"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                            <?php if ($show_title): ?>
+                                <div class="ypg-thumb-title"><?php echo $title; ?></div>
+                            <?php endif; ?>
+                        </div>
+                        <?php
+                    }
+                    ?>
+                </div>
+                
+                <?php if ($pagination && isset($data['nextPageToken'])): ?>
+                    <div class="ypg-pagination">
+                        <button class="ypg-load-more" data-next-token="<?php echo esc_attr($data['nextPageToken']); ?>">
+                            <?php _e('Carica Altri Video', 'youtube-playlist-gallery'); ?>
+                        </button>
+                        <span class="ypg-loader" style="display:none;">
+                            <span class="ypg-spinner"></span>
+                        </span>
+                    </div>
+                <?php endif; ?>
+            </div>
+            <?php
+        } else {
+            // Altri layout (grid, list, masonry, carousel)
+            ?>
+            <div id="<?php echo esc_attr($gallery_id); ?>" 
+                 class="ypg-gallery-wrapper ypg-layout-<?php echo esc_attr($layout); ?>" 
+                 data-playlist="<?php echo esc_attr($playlist_id); ?>"
+                 data-max="<?php echo esc_attr($max_results); ?>"
+                 data-lightbox="<?php echo $lightbox ? '1' : '0'; ?>">
+                
+                <div class="ypg-gallery ypg-columns-<?php echo esc_attr($columns); ?>">
                 <?php
                 foreach ($data['items'] as $item) {
                     $video_id = $item['snippet']['resourceId']['videoId'];
                     $title = esc_html($item['snippet']['title']);
                     $description = isset($item['snippet']['description']) ? esc_html(wp_trim_words($item['snippet']['description'], 20)) : '';
-                    $thumb = esc_url($item['snippet']['thumbnails']['medium']['url']);
-                    $thumb_high = isset($item['snippet']['thumbnails']['high']['url']) ? esc_url($item['snippet']['thumbnails']['high']['url']) : $thumb;
+                    
+                    // Use high quality thumbnails for all layouts
+                    if (isset($item['snippet']['thumbnails']['high']['url'])) {
+                        $thumb = esc_url($item['snippet']['thumbnails']['high']['url']);
+                    } else {
+                        $thumb = esc_url($item['snippet']['thumbnails']['medium']['url']);
+                    }
+                    
+                    // Use maxres for hover/click if available
+                    if (isset($item['snippet']['thumbnails']['maxres']['url'])) {
+                        $thumb_high = esc_url($item['snippet']['thumbnails']['maxres']['url']);
+                    } elseif (isset($item['snippet']['thumbnails']['standard']['url'])) {
+                        $thumb_high = esc_url($item['snippet']['thumbnails']['standard']['url']);
+                    } else {
+                        $thumb_high = $thumb;
+                    }
                     
                     $link_attrs = $lightbox ? 
                         'data-video-id="' . esc_attr($video_id) . '" class="ypg-video-link"' : 
@@ -1059,19 +1210,60 @@ class YouTube_Playlist_Gallery {
                     </div>
                     <?php
                 }
-                ?>
-            </div>
-            
-            <?php if ($pagination && isset($data['nextPageToken'])): ?>
-                <div class="ypg-pagination">
-                    <button class="ypg-load-more" data-next-token="<?php echo esc_attr($data['nextPageToken']); ?>">
-                        <?php _e('Carica Altri Video', 'youtube-playlist-gallery'); ?>
-                    </button>
-                    <span class="ypg-loader" style="display:none;">
-                        <span class="ypg-spinner"></span>
-                    </span>
+                    ?>
                 </div>
-            <?php endif; ?>
+                
+                <?php if ($pagination && isset($data['nextPageToken'])): ?>
+                    <div class="ypg-pagination">
+                        <button class="ypg-load-more" data-next-token="<?php echo esc_attr($data['nextPageToken']); ?>">
+                            <?php _e('Carica Altri Video', 'youtube-playlist-gallery'); ?>
+                        </button>
+                        <span class="ypg-loader" style="display:none;">
+                            <span class="ypg-spinner"></span>
+                        </span>
+                    </div>
+                <?php endif; ?>
+            </div>
+            <?php
+        }
+        ?>
+        
+        <!-- Share Modal -->
+        <div id="ypg-share-modal" class="ypg-share-modal" style="display:none;">
+            <div class="ypg-share-overlay"></div>
+            <div class="ypg-share-content">
+                <div class="ypg-share-header">
+                    <h3><?php _e('Condividi Video', 'youtube-playlist-gallery'); ?></h3>
+                    <button class="ypg-share-close">&times;</button>
+                </div>
+                <div class="ypg-share-body">
+                    <p><?php _e('Copia questo link per condividere il video:', 'youtube-playlist-gallery'); ?></p>
+                    <div class="ypg-share-url-container">
+                        <input type="text" class="ypg-share-url" readonly id="ypg-share-url-input">
+                        <button class="ypg-share-copy-btn" id="ypg-share-copy">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M20 9H11C9.89543 9 9 9.89543 9 11V20C9 21.1046 9.89543 22 11 22H20C21.1046 22 22 21.1046 22 20V11C22 9.89543 21.1046 9 20 9Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M5 15H4C3.46957 15 2.96086 14.7893 2.58579 14.4142C2.21071 14.0391 2 13.5304 2 13V4C2 3.46957 2.21071 2.96086 2.58579 2.58579C2.96086 2.21071 3.46957 2 4 2H13C13.5304 2 14.0391 2.21071 14.4142 2.58579C14.7893 2.96086 15 3.46957 15 4V5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <?php _e('Copia', 'youtube-playlist-gallery'); ?>
+                        </button>
+                    </div>
+                    <div class="ypg-share-social">
+                        <a href="#" class="ypg-share-social-btn ypg-share-facebook" target="_blank" rel="noopener">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                            Facebook
+                        </a>
+                        <a href="#" class="ypg-share-social-btn ypg-share-twitter" target="_blank" rel="noopener">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/></svg>
+                            Twitter
+                        </a>
+                        <a href="#" class="ypg-share-social-btn ypg-share-whatsapp" target="_blank" rel="noopener">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+                            WhatsApp
+                        </a>
+                    </div>
+                </div>
+            </div>
         </div>
         
         <?php if ($lightbox): ?>
